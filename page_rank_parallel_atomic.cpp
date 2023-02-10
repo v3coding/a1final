@@ -24,7 +24,6 @@ typedef float PageRankType;
 static int numberOfThreads;
 static CustomBarrier* my_barrier;
 
-//void pageRankParallel(uintV u, uintV n, int max_iters, std::atomic<PageRankType> *pr_curr, std::atomic<PageRankType> *pr_next, Graph *g, CustomBarrier *barrier, double* time_taken)
 void pageRankParallel(uintV k, uintV n, int max_iters, std::atomic<PageRankType> *pr_curr, std::atomic<PageRankType> *pr_next, Graph &g, double& time_taken)
 {
   timer t1;
@@ -45,9 +44,6 @@ void pageRankParallel(uintV k, uintV n, int max_iters, std::atomic<PageRankType>
     }
     my_barrier->wait();
     for (uintV v = k; v < n; v++){
-      if(v == 0){
-        std::cout << "Storing between " << v << " and " << n <<std::endl;
-      }
       pr_next[v] = PAGE_RANK(pr_next[v]);
       pr_curr[v].store(pr_next[v]);
       pr_next[v] = 0.0;
@@ -74,8 +70,6 @@ void pageRankSerial(Graph &g, int max_iters)
 
   double times[numberOfThreads];
   double time_taken = 0;
-  timer t2;
-  t2.start();
 
   double numThreads = (double) numberOfThreads;
   double numVertexes = (double) n;
@@ -84,7 +78,8 @@ void pageRankSerial(Graph &g, int max_iters)
   uintV startCaster = 0;
   uintV finishCaster = 0;
 
-
+  timer t2;
+  t2.start();
   for (int i = 0; i < numberOfThreads; i++){
     if(((start + numVertexes) / numThreads) < n){
       finish = start + (numVertexes / numThreads);
@@ -94,15 +89,9 @@ void pageRankSerial(Graph &g, int max_iters)
     }
     startCaster = (uintV) trunc(start);
     finishCaster = (uintV) trunc(finish);
-
-    std::cout << "start = " << start << " finish = " << finish << " n  = " << n << std::endl;
-
     threads[i] = std::thread(pageRankParallel, startCaster, finishCaster, max_iters, std::ref(pr_curr), std::ref(pr_next), std::ref(g), std::ref(times[i]));
     start = finish;
   }
-
-
-
   for(int i = 0; i < numberOfThreads; i++){
     threads[i].join();
   }
