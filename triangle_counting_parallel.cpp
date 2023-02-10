@@ -5,6 +5,9 @@
 #include <iostream>
 #include <stdlib.h>
 #include <thread>
+#include <cmath>
+
+static int numberOfThreads;
 
 long countTriangles(uintV *array1, uintE len1, uintV *array2, uintE len2,
                      uintV u, uintV v) {
@@ -31,19 +34,10 @@ long countTriangles(uintV *array1, uintE len1, uintV *array2, uintE len2,
   return count;
 }
 
-void triangleCountSerial(Graph &g) {
-  uintV n = g.n_;
-  long triangle_count = 0;
-  double time_taken = 0.0;
-  timer t1;
-
-  // The outNghs and inNghs for a given vertex are already sorted
-
-  // Create threads and distribute the work across T threads
-  // -------------------------------------------------------------------
-  t1.start();
-  // Process each edge <u,v>
-  for (uintV u = 0; u < n; u++) {
+void triangleCountParallel(uintV start, uintV finish, Graph &g, uintV n, uintV& triangle_count,double& time_taken){
+  timer t2;
+  t2.start();
+    for (uintV u = start; u < finish; u++) {
     // For each outNeighbor v, find the intersection of inNeighbor(u) and
     // outNeighbor(v)
     uintE out_degree = g.vertices_[u].getOutDegree();
@@ -55,12 +49,66 @@ void triangleCountSerial(Graph &g) {
                                        g.vertices_[v].getOutDegree(), u, v);
     }
   }
+  time_taken = t2.stop();
+}
+
+void triangleCountSerial(Graph &g) {
+  uintV n = g.n_;
+  long triangle_count = 0;
+  double time_taken = 0.0;
+  timer t1;
+  uintV Counter[numberOfThreads];
+  for(int i = 0; i < numberOfThreads; i++){
+    Counter[i] = 0;
+  }
+  // The outNghs and inNghs for a given vertex are already sorted
+
+  // Create threads and distribute the work across T threads
+  // -------------------------------------------------------------------
+  double numThreads = (double) numberOfThreads;
+  double numVertexes = (double) n;
+  double start = 0;
+  double finish = 0;
+  uintV startCaster = 0;
+  uintV finishCaster = 0;
+  std::thread threads[numberOfThreads];
+  double timers[numberOfThreads];
+  for(int i = 0; i < numberOfThreads; i++){
+    timers[i] = 0;
+  }
+
+  t1.start();
+  // Process each edge <u,v>
+    for (int i = 0; i < numberOfThreads; i++){
+    if(((start + numVertexes) / numThreads) < n){
+      finish = start + (numVertexes / numThreads);
+    }
+    else {
+      finish = numVertexes;
+    }
+    startCaster = (uintV) trunc(start);
+    finishCaster = (uintV) trunc(finish);
+    threads[i] = std::thread(triangleCountParallel,startCaster,finishCaster,std::ref(g),n,std::ref(Counter[i]),std::ref(timers[i]));
+    start = finish;
+  }
+  for(int i = 0; i < numberOfThreads; i++){
+    threads[i].join();
+  }
+
   time_taken = t1.stop();
+
+  triangle_count = 0;
+  for(int i = 0; i < numberOfThreads; i++){
+    triangle_count += Counter[i];
+  }
   // -------------------------------------------------------------------
   // Here, you can just print the number of non-unique triangles counted by each
   // thread std::cout << "thread_id, triangle_count, time_taken\n"; Print the
   // above statistics for each thread Example output for 2 threads: thread_id,
   // triangle_count, time_taken 1, 102, 0.12 0, 100, 0.12
+  for(int i = 0; i < numberOfThreads; i++){
+    std::cout << i << ", " << Counter[i] << ", " << timers[i] << " " << std::endl; 
+  }
 
   // Print the overall statistics
   std::cout << "Number of triangles : " << triangle_count << "\n";
@@ -88,6 +136,7 @@ int main(int argc, char *argv[]) {
   std::string input_file_path = cl_options["inputFile"].as<std::string>();
   std::cout << std::fixed;
   std::cout << "Number of workers : " << n_workers << "\n";
+  numberOfThreads = n_workers;
 
   Graph g;
   std::cout << "Reading graph\n";

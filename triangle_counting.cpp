@@ -38,7 +38,7 @@ void triangleCountSerial(Graph &g) {
   timer t1;
 
   // The outNghs and inNghs for a given vertex are already sorted
-
+//
   // Create threads and distribute the work across T threads
   // -------------------------------------------------------------------
   t1.start();
